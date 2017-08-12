@@ -1,0 +1,99 @@
+.whizzie-wrap {
+	opacity: 0;
+}
+.whizzie-wrap.loaded {
+	opacity: 1;
+}
+.whizzie-menu li.step {
+	visibility: hidden;
+}
+.whizzie-menu li.active-step {
+	visibility: visible;
+}
+.loaded .whizzie-menu li.step {
+	visibility: visible;
+	display: none;
+}
+.loaded .whizzie-menu li.active-step {
+	display: list-item;
+}
+.spinning .spinner {
+	visibility: visible;
+	float: none;
+	text-align: center;
+}
+.button-wrap {
+	display: inline-block;
+	margin: 1em 0;
+}
+.button-wrap .spinner {
+	margin: 4px 0;
+	float: none;
+	display: none;
+}
+.button-wrap.spinning a.do-it {
+	visibility: hidden;
+}
+.button-wrap.spinning .spinner {
+	visibility: visible;
+	display: block;
+}
+.detail {
+	display: none;
+	opacity: 0;
+	transition: all 1s;
+}
+.show-detail .detail {
+	display: block;
+	opacity: 1;
+	transform: scaleY(1);
+	transform-origin: top;
+	transition: all 0.5s;
+}
+.detail.scale-down {
+	transform: scaleY(0);
+}
+.whizzie-menu .detail ul {
+	margin: 1em 0;
+}
+a.more-info {
+	text-decoration: none;
+	text-transform: uppercase;
+	font-weight: bold;
+	color: #ccc;
+}
+a.more-info:after {
+	font-family: Dashicons;
+	content: "\f347";
+	padding-left: 0.25em;
+	vertical-align: middle;
+}
+ul.whizzie-do-plugins li {
+	padding: 0.5em 1em;
+}
+ul.whizzie-do-plugins li:nth-child(odd) {
+	background: #f9f9f9;
+}
+ul.whizzie-do-plugins li span {
+	float: right;
+}
+ul.whizzie-nav {
+	list-style: none;
+	display: -webkit-flex;
+	display: webkit-flex;
+	justify-content: space-around;
+}
+ul.whizzie-nav li {
+	opacity: 1;
+	transition: all 0.25s;
+}
+ul.whizzie-nav li.active-step {
+	color: #0073aa;
+}
+
+ul.whizzie-nav li.done-step {
+	opacity: 0.5;
+}
+ul.whizzie-nav .dashicons {
+	font-size: 2em;
+}
