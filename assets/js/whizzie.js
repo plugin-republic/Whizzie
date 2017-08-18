@@ -13,6 +13,10 @@ var Whizzie = (function($){
             var plugins = new PluginManager();
             plugins.init( btn );
         },
+		install_widgets: function( btn ) {
+			var widgets = new WidgetManager();
+			widgets.init( btn );
+		},
         install_content: function(btn){
             var content = new ContentManager();
             content.init( btn );
@@ -48,7 +52,7 @@ var Whizzie = (function($){
 			e.preventDefault();
 			step_pointer = $(this).data('step');
 			current_step = $('.step-' + $(this).data('step'));
-			$(this).parent().addClass( 'spinning' );
+			$('.whizzie-wrap').addClass( 'spinning' );
             if($(this).data('callback') && typeof callbacks[$(this).data('callback')] != 'undefined'){
                 // we have to process a callback before continue with form submission
                 callbacks[$(this).data('callback')](this);
@@ -114,6 +118,7 @@ var Whizzie = (function($){
 			current_step.fadeIn();
 			current_step.addClass( 'active-step' );
 			$( '.nav-step-' + step_pointer ).addClass( 'active-step' );
+			$('.whizzie-wrap').removeClass( 'spinning' );
 		});
     }
 
@@ -204,6 +209,27 @@ var Whizzie = (function($){
             }
         }
     }
+	
+	function WidgetManager() {
+		function import_widgets(){
+            jQuery.post(
+				whizzie_params.ajaxurl,
+				{
+					action: 'setup_widgets',
+					wpnonce: whizzie_params.wpnonce
+				},
+				complete
+			);
+		}
+		return {
+			init: function( btn ) {
+				complete = function() {
+					do_next_step();
+				}
+				import_widgets();
+			}
+		}
+	}
 
     function ContentManager(){
 
@@ -244,7 +270,6 @@ var Whizzie = (function($){
 
                 var $check = $current_node.find('input:checkbox');
                 if($check.is(':checked')) {
-                    console.log("Doing 2 "+current_item);
                     // process htis one!
                     jQuery.post(whizzie_params.ajaxurl, {
                         action: 'envato_setup_content',
