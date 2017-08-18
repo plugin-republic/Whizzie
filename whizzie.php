@@ -3,11 +3,13 @@
  * Wizard
  *
  * @package Whizzie
+ * @author Catapult Themes
+ * @since 1.0.0
  */
 
 class Whizzie {
 	
-	protected $version = '1.0.0';
+	protected $version = '1.1.0';
 	
 	/** @var string Current theme name, used as namespace in actions. */
 	protected $theme_name = '';
@@ -16,6 +18,9 @@ class Whizzie {
 	/** @var string Wizard page slug and title. */
 	protected $page_slug = '';
 	protected $page_title = '';
+	
+	/** @var array Wizard steps set by user. */
+	protected $config_steps = array();
 	
 	/**
 	 * Relative plugin url for this plugin folder
@@ -30,18 +35,23 @@ class Whizzie {
 	 * @var object
 	 */
 	protected $tgmpa_instance;
+	
 	/**
 	 * TGMPA Menu slug
 	 *
 	 * @var string
 	 */
 	protected $tgmpa_menu_slug = 'tgmpa-install-plugins';
+	
 	/**
 	 * TGMPA Menu url
 	 *
 	 * @var string
 	 */
 	protected $tgmpa_url = 'themes.php?page=tgmpa-install-plugins';
+	
+	// Where to find the widget.wie file
+	protected $widget_file_url = '';
 			
 	/**
 	 * Constructor
@@ -57,11 +67,12 @@ class Whizzie {
 	 * Set some settings
 	 * @since 1.0.0
 	 * @param $config	Our config parameters
-	 */	
+	 */
 	public function set_vars( $config ) {
 		
-		require_once get_template_directory() . '/whizzie/tgmpa/class-tgm-plugin-activation.php';
-		require_once get_template_directory() . '/whizzie/tgmpa/required-plugins.php';
+		require_once trailingslashit( WHIZZIE_DIR ) . 'tgmpa/class-tgm-plugin-activation.php';
+		require_once trailingslashit( WHIZZIE_DIR ) . 'tgmpa/required-plugins.php';
+		require_once trailingslashit( WHIZZIE_DIR ) . 'classes/class-whizzie-widget-importer.php';
 		
 		if( isset( $config['page_slug'] ) ) {
 			$this->page_slug = esc_attr( $config['page_slug'] );
@@ -69,6 +80,10 @@ class Whizzie {
 		if( isset( $config['page_title'] ) ) {
 			$this->page_title = esc_attr( $config['page_title'] );
 		}
+		if( isset( $config['steps'] ) ) {
+			$this->config_steps = $config['steps'];
+		}
+		
 		$this->plugin_path = trailingslashit( dirname( __FILE__ ) );
 		$relative_url = str_replace( get_template_directory(), '', $this->plugin_path );
 		$this->plugin_url = trailingslashit( get_template_directory_uri() . $relative_url );
@@ -78,8 +93,14 @@ class Whizzie {
 		$this->page_slug = apply_filters( $this->theme_name . '_theme_setup_wizard_page_slug', $this->theme_name . '-setup' );
 		$this->parent_slug = apply_filters( $this->theme_name . '_theme_setup_wizard_parent_slug', '' );
 		
+		$this->widget_file_url = trailingslashit( WHIZZIE_DIR ) . 'content/widgets.wie';
+		
 	}
 	
+	/**
+	 * Hooks and filters
+	 * @since 1.0.0
+	 */	
 	public function init() {
 		
 		add_action( 'after_switch_theme', array( $this, 'redirect_to_wizard' ) );
@@ -92,6 +113,12 @@ class Whizzie {
 		add_action( 'admin_init', array( $this, 'get_plugins' ), 30 );
 		add_filter( 'tgmpa_load', array( $this, 'tgmpa_load' ), 10, 1 );
 		add_action( 'wp_ajax_setup_plugins', array( $this, 'setup_plugins' ) );
+		add_action( 'wp_ajax_setup_widgets', array( $this, 'setup_widgets' ) );
+		
+	//	add_action( 'init', array( $this, 'setup_widgets') );
+	//	$this->setup_widgets();
+	//	$widgets = get_option( 'sidebars_widgets' );
+	//	print_r( $widgets );
 	}
 	
 	public function redirect_to_wizard() {
@@ -158,7 +185,7 @@ class Whizzie {
 	}
 	
 	/**
-	 * Make a modal screen for the wizard
+	 * Make an interface for the wizard
 	 */
 	public function wizard_page() { 
 		tgmpa_load_bulk_installer();
@@ -166,7 +193,7 @@ class Whizzie {
 		if ( ! class_exists( 'TGM_Plugin_Activation' ) || ! isset( $GLOBALS['tgmpa'] ) ) {
 			die( 'Failed to find TGM' );
 		}
-		$url     = wp_nonce_url( add_query_arg( array( 'plugins' => 'go' ) ), 'envato-setup' );
+		$url = wp_nonce_url( add_query_arg( array( 'plugins' => 'go' ) ), 'whizzie-setup' );
 		
 		// copied from TGM
 		$method = ''; // Leave blank so WP_Filesystem can populate it as necessary.
@@ -182,8 +209,7 @@ class Whizzie {
 		}
 		/* If we arrive here, we have the filesystem */ ?>
 		<div class="wrap">
-			<?php printf( '<h1>%s</h1>', esc_html( $this->page_title ) ); ?>
-			<?php printf( '<p>%s</p>', __( 'We\'d like you to get up and running with our theme as quickly and easily as possible. Use the wizard below to get started.', 'whizzie' ) );
+			<?php printf( '<h1>%s</h1>', esc_html( $this->page_title ) );
 			echo '<div class="card whizzie-wrap">';
 				// The wizard is a list with only one item visible at a time
 				$steps = $this->get_steps();
@@ -211,7 +237,7 @@ class Whizzie {
 						// The next button
 						if( isset( $step['button_text'] ) && $step['button_text'] ) {
 							printf( 
-								'<div class="button-wrap"><span class="spinner"></span><a href="#" class="button button-primary do-it" data-callback="%s" data-step="%s">%s</a></div>',
+								'<div class="button-wrap"><a href="#" class="button button-primary do-it" data-callback="%s" data-step="%s">%s</a></div>',
 								esc_attr( $step['callback'] ),
 								esc_attr( $step['id'] ),
 								esc_html( $step['button_text'] )
@@ -220,7 +246,7 @@ class Whizzie {
 						// The skip button
 						if( isset( $step['can_skip'] ) && $step['can_skip'] ) {
 							printf( 
-								'<div class="button-wrap" style="margin-left: 0.5em;"><span class="spinner"></span><a href="#" class="button button-secondary do-it" data-callback="%s" data-step="%s">%s</a></div>',
+								'<div class="button-wrap" style="margin-left: 0.5em;"><a href="#" class="button button-secondary do-it" data-callback="%s" data-step="%s">%s</a></div>',
 								'do_next_step',
 								esc_attr( $step['id'] ),
 								__( 'Skip', 'whizzie' )
@@ -238,15 +264,20 @@ class Whizzie {
 					}
 				echo '</ul>';
 				?>
+				<div class="step-loading"><span class="spinner"></span></div>
 			</div><!-- .whizzie-wrap -->
+			
 		</div><!-- .wrap -->
 	<?php }
 	
 	/**
+	 * Set options for the steps
+	 * Incorporate any options set by the theme dev
 	 * Return the array for the steps
 	 * @return Array
 	 */
 	public function get_steps() {
+		$dev_steps = $this->config_steps;
 		$steps = array( 
 			'intro' => array(
 				'id'			=> 'intro',
@@ -266,6 +297,15 @@ class Whizzie {
 				'button_text'	=> __( 'Install Plugins', 'whizzie' ),
 				'can_skip'		=> true
 			),
+			'widgets' => array(
+				'id'			=> 'widgets',
+				'title'			=> __( 'Widgets', 'whizzie' ),
+				'icon'			=> 'welcome-widgets-menus',
+				'view'			=> 'get_step_widgets',
+				'callback'		=> 'install_widgets',
+				'button_text'	=> __( 'Install Widgets', 'whizzie' ),
+				'can_skip'		=> true
+			),
 			'done' => array(
 				'id'			=> 'done',
 				'title'			=> __( 'All Done', 'whizzie' ),
@@ -274,6 +314,25 @@ class Whizzie {
 				'callback'		=> ''
 			)
 		);
+		
+		// Iterate through each step and replace with dev config values
+		if( $dev_steps ) {
+			// Configurable elements - these are the only ones the dev can update from config.php
+			$can_config = array( 'title', 'icon', 'button_text', 'can_skip' );
+			foreach( $dev_steps as $dev_step ) {
+				// We can only proceed if an ID exists and matches one of our IDs
+				if( isset( $dev_step['id'] ) ) {
+					$id = $dev_step['id'];
+					if( isset( $steps[$id] ) ) {
+						foreach( $can_config as $element ) {
+							if( isset( $dev_step[$element] ) ) {
+								$steps[$id][$element] = $dev_step[$element];
+							}
+						}
+					}
+				}
+			}
+		}
 		return $steps;
 	}
 	
@@ -300,6 +359,8 @@ class Whizzie {
 			'<p>%s</p>',
 			__( 'This theme works best with some additional plugins. Click the button to install. You can still install or deactivate plugins later from the dashboard.', 'whizzie' )
 		);
+		$content = apply_filters( 'whizzie_filter_summary_content', $content );
+		
 		// The detail element is initially hidden from the user
 		$content['detail'] = '<ul class="whizzie-do-plugins">';
 		// Add each plugin into a list
@@ -320,6 +381,30 @@ class Whizzie {
 		}
 		$content['detail'] .= '</ul>';
 		
+		return $content;
+	}
+	
+	/**
+	 * Print the content for the widgets step
+	 * @since 1.1.0
+	 */
+	public function get_step_widgets() {
+		$content = array();
+		// Check if the widgets file is included
+		$file = $this->has_widget_file();
+		if( $file ) {
+			$content['summary'] = sprintf( 
+				'<p>%s</p>',
+				__( 'This theme adds content and functionality via widgets. Click the button to install these widgets - you can update them or deactivate at any time from the Customizer.', 'whizzie' )
+			);
+		} else {
+			$content['summary'] = sprintf( 
+				'<p>%s</p>',
+				__( 'No widgets.wie found.', 'whizzie' )
+			);
+		}
+		
+		$content = apply_filters( 'whizzie_filter_widgets_content', $content );
 		return $content;
 	}
 	
@@ -363,6 +448,18 @@ class Whizzie {
 			}
 		}
 		return $plugins;
+	}
+	
+	/**
+	 * Get the widgets.wie file from the /content folder
+	 * @return Mixed	Either the file or false
+	 * @since 1.1.0
+	 */
+	public function has_widget_file() {
+		if( file_exists( $this->widget_file_url ) ) {
+			return true;
+		}
+		return false;
 	}
 	
 	public function setup_plugins() {
@@ -427,5 +524,22 @@ class Whizzie {
 		}
 		exit;
 	}
+	
+	/**
+	 * Imports the widgets.wie file
+	 * @since 1.1.0
+	 */
+	public function setup_widgets() {
+		if( ! file_exists( $this->widget_file_url ) ) {
+			// If the file doesn't exist, this step will just complete
+			wp_send_json( array( 'done' => 1, 'message' => esc_html__( 'File does not exist' ) ) );
+		}
+		$Whizzie_Widget_Importer = new Whizzie_Widget_Importer;
+		$results = $Whizzie_Widget_Importer->import_widgets( $this->widget_file_url );
+		
+		wp_send_json( $results );
+		exit;
+	}
+	
 
 }
